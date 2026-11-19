@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en" data-api="https://farmaid-api.onrender.com">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FarmAID · crop disease diagnosis</title>
+<meta name="description" content="Photograph a crop leaf and FarmAID's ResNet50 model names the disease, with symptoms and treatment. 6 crops, 23 conditions.">
+<style>
+@font-face{font-family:"Bricolage";src:url(fonts/bricolage.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"Atkinson";src:url(fonts/atkinson-hyperlegible-latin-400-normal.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Atkinson";src:url(fonts/atkinson-hyperlegible-latin-700-normal.woff2) format("woff2");font-weight:700;font-display:swap}
+:root{
+  --spray:#1B4DB1;      /* Bordeaux-mixture blue: the copper fungicide every farmer has sprayed */
+  --spray-deep:#123A8A;
+  --leaf:#F4F7F2;       /* page */
+  --ink:#10201A;        /* text */
+  --stem:#5B6B60;       /* secondary text */
+  --chloro:#3FA34D;     /* healthy */
+  --blight:#E8C547;     /* disease */
+  --line:#D5DDD3;
+  --display:"Bricolage",system-ui,sans-serif;
+  --body:"Atkinson",system-ui,sans-serif;
+  --max:1240px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--leaf);color:var(--ink);font:400 17px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+img{display:block;max-width:100%}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--blight);outline-offset:3px}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 28px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+
+/* ---------- nav ---------- */
+.nav{position:fixed;inset:0 0 auto 0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:16px 28px;color:#fff;mix-blend-mode:normal;transition:background .3s,color .3s}
+.nav.solid{background:rgba(244,247,242,.92);color:var(--ink);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.brand{font:800 22px/1 var(--display);letter-spacing:-.02em;text-decoration:none}
+.nav ul{display:flex;gap:26px;list-style:none;margin:0;padding:0}
+.nav ul a{text-decoration:none;font-size:15px;opacity:.85}
+.nav ul a:hover{opacity:1;text-decoration:underline;text-underline-offset:4px}
+@media (max-width:760px){.nav ul li:not(.keep){display:none}.nav{padding:14px 18px}}
+
+/* ---------- hero ---------- */
+.hero{background:var(--spray);color:#fff;min-height:100svh;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:110px 0 40px}
+.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 78% 30%,rgba(255,255,255,.10),transparent 45%);pointer-events:none}
+.word{font:800 clamp(78px,17.5vw,268px)/.82 var(--display);letter-spacing:-.055em;margin:0;white-space:nowrap}
+.word span{display:inline-block;transform:translateY(105%);animation:rise .9s cubic-bezier(.2,.8,.2,1) forwards}
+.word span:nth-child(2){animation-delay:.06s}.word span:nth-child(3){animation-delay:.12s}.word span:nth-child(4){animation-delay:.18s}
+.word span:nth-child(5){animation-delay:.24s}.word span:nth-child(6){animation-delay:.30s}.word span:nth-child(7){animation-delay:.36s}
+.wordclip{overflow:hidden;padding-bottom:.04em}
+@keyframes rise{to{transform:none}}
+.herogrid{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:end;margin-top:34px}
+.lede{font:500 clamp(22px,2.4vw,32px)/1.2 var(--display);letter-spacing:-.01em;max-width:21ch;margin:0 0 22px}
+.cta{display:inline-flex;gap:10px;align-items:center;background:#fff;color:var(--spray-deep);font:700 17px/1 var(--body);padding:16px 22px;border-radius:999px;text-decoration:none;border:0;cursor:pointer}
+.cta:hover{background:var(--blight);color:var(--ink)}
+.specs{display:grid;grid-template-columns:repeat(5,auto);gap:6px 26px;margin:34px 0 0;padding:18px 0 0;border-top:1px solid rgba(255,255,255,.28)}
+.specs dt{font-size:13px;opacity:.72}
+.specs dd{margin:0;font:700 19px/1.2 var(--display)}
+.specs div{display:flex;flex-direction:column-reverse}
+
+/* the lens: one orchestrated moment */
+.lens{position:relative;justify-self:end;width:min(380px,100%)}
+.lens figure{margin:0;position:relative;aspect-ratio:1;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.5);box-shadow:0 0 0 14px rgba(255,255,255,.06)}
+.lens img{width:100%;height:100%;object-fit:cover}
+.scan{position:absolute;left:0;right:0;height:3px;background:var(--blight);box-shadow:0 0 22px 6px rgba(232,197,71,.55);top:-4%;animation:scan 2.6s .9s cubic-bezier(.45,0,.55,1) 2 alternate}
+@keyframes scan{to{top:102%}}
+.verdict{margin-top:16px;min-height:72px;font-size:15px}
+.verdict b{display:block;font:700 22px/1.15 var(--display)}
+.verdict small{opacity:.75}
+.caret::after{content:"▍";animation:blink 1s steps(1) infinite;margin-left:2px}
+@keyframes blink{50%{opacity:0}}
+@media (max-width:860px){
+  .herogrid{grid-template-columns:1fr}
+  .lens{justify-self:start;width:min(300px,78vw)}
+  .specs{grid-template-columns:repeat(2,auto);justify-content:start}
+}
+
+/* ---------- section heads (two-line, Lando-style) ---------- */
+section{padding:110px 0}
+.head{display:flex;justify-content:space-between;align-items:end;gap:30px;margin-bottom:48px;flex-wrap:wrap}
+.head h2{font:800 clamp(52px,9vw,128px)/.86 var(--display);letter-spacing:-.045em;text-transform:uppercase;margin:0}
+.head h2 em{font-style:normal;color:var(--spray)}
+.head p{max-width:38ch;margin:0;color:var(--stem)}
+
+/* ---------- diagnose ---------- */
+.diag{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:28px;align-items:start}
+.drop{position:relative;border:2px dashed #9DB0A2;border-radius:22px;background:#fff;min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;cursor:pointer;transition:border-color .2s,background .2s;overflow:hidden}
+.drop.over{border-color:var(--spray);background:#EEF3FC}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop .icon{width:64px;height:64px;border-radius:50%;background:var(--spray);display:grid;place-items:center;margin-bottom:16px}
+.drop strong{font:700 24px/1.15 var(--display)}
+.drop .hint{color:var(--stem);font-size:15px;margin-top:6px}
+.preview{position:absolute;inset:0;display:none;background:#0b1410}
+.preview img{width:100%;height:100%;object-fit:contain}
+.drop.has .preview{display:block}
+.drop.busy .scan{display:block;animation:scan 1.3s cubic-bezier(.45,0,.55,1) infinite alternate}
+.drop .scan{display:none}
+.again{position:absolute;right:14px;bottom:14px;z-index:3;display:none;background:#fff;border:0;border-radius:999px;padding:10px 16px;font:700 14px/1 var(--body);cursor:pointer}
+.drop.has .again{display:block}
+.steps{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:7px;font-size:14px;color:var(--stem)}
+.steps li{display:flex;gap:10px;align-items:center}
+.steps li::before{content:"";width:9px;height:9px;border-radius:50%;border:2px solid currentColor;flex:none}
+.steps li.on{color:var(--ink)}.steps li.on::before{background:var(--blight);border-color:var(--blight)}
+.steps li.done::before{background:var(--chloro);border-color:var(--chloro)}
+.note{font-size:13px;color:var(--stem);margin-top:12px}
+
+/* the result: a herbarium specimen label */
+.label{scroll-margin-top:76px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:30px;min-height:420px;position:relative}
+.label .empty{color:var(--stem);display:grid;place-items:center;height:360px;text-align:center}
+.tagrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.tag{font:700 13px/1 var(--body);padding:7px 11px;border-radius:999px;background:#EEF1EC}
+.tag.sick{background:var(--blight)}.tag.ok{background:var(--chloro);color:#fff}.tag.warn{background:#FCE4E1;color:#8A1F11}
+.cond{font:800 clamp(34px,4.2vw,54px)/.95 var(--display);letter-spacing:-.035em;margin:4px 0 6px}
+.crop{color:var(--stem);font-size:16px}
+.conf{display:flex;align-items:baseline;gap:10px;margin:20px 0 6px}
+.conf b{font:800 44px/1 var(--display);letter-spacing:-.03em}
+.bars{display:grid;gap:9px;margin:14px 0 4px}
+.bar{display:grid;grid-template-columns:minmax(0,1fr) 56px;gap:10px;align-items:center;font-size:14px}
+.bar .track{grid-column:1/-1;height:8px;border-radius:5px;background:#EEF1EC;overflow:hidden}
+.bar .fill{height:100%;background:var(--spray);width:0;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.bar:first-child .fill{background:var(--ink)}
+.bar span:nth-child(2){text-align:right;font-variant-numeric:tabular-nums;font-family:var(--display);font-weight:600}
+.meta,.verdict small,.steps{font-family:var(--display)}
+.check{margin:16px 0 0;padding:12px 14px;border-radius:12px;font-size:15px}
+.check.right{background:#E6F4E8}.check.wrong{background:#FCE4E1}
+.advice{display:grid;gap:14px;margin-top:22px;border-top:1px solid var(--line);padding-top:20px}
+.advice h4{margin:0 0 3px;font:700 14px/1.2 var(--body);color:var(--stem)}
+.advice p{margin:0}
+details{margin-top:6px}
+summary{cursor:pointer;font-weight:700;color:var(--spray)}
+.meta{margin-top:18px;font-size:13px;color:var(--stem)}
+.alert{background:#FFF7DB;border-left:4px solid var(--blight);padding:12px 14px;border-radius:8px;margin:14px 0 0;font-size:15px}
+@media (max-width:900px){.diag{grid-template-columns:minmax(0,1fr)}.drop,.label{min-height:300px}.label .empty{height:220px}}
+
+/* ---------- specimen gallery (hover swap) ---------- */
+.crops{display:grid;gap:44px}
+.croprow h3{font:700 15px/1 var(--body);color:var(--stem);margin:0 0 14px;text-transform:lowercase}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.card{all:unset;box-sizing:border-box;cursor:pointer;display:block;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;transition:transform .25s,box-shadow .25s}
+.card:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(16,32,26,.10)}
+.card:focus-visible{outline:3px solid var(--spray);outline-offset:3px}
+.card .pic{position:relative;aspect-ratio:1}
+.card .pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .35s}
+.card .pic img.alt{opacity:0}
+.card:hover .pic img.alt,.card:focus-visible .pic img.alt{opacity:1}
+.card .cap{padding:12px 14px 14px}
+.card .cap b{display:block;font:700 18px/1.15 var(--display)}
+.card .cap small{color:var(--stem);font-size:13px}
+.card .swap{position:absolute;left:10px;top:10px;font:700 11px/1 var(--body);background:rgba(255,255,255,.9);padding:6px 8px;border-radius:999px;opacity:0;transition:opacity .3s}
+.card:hover .swap{opacity:1}
+
+/* ---------- how it decides ---------- */
+.how{background:var(--ink);color:#E8EEE8}
+.how .head p{color:#A9B7AD}
+.how .head h2 em{color:var(--blight)}
+.flow{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:#26382E;border-radius:20px;overflow:hidden}
+.flow li{background:var(--ink);padding:28px 26px}
+.flow .n{font:800 15px/1 var(--display);color:var(--blight)}
+.flow h3{font:700 22px/1.15 var(--display);margin:12px 0 8px}
+.flow p{margin:0;color:#A9B7AD;font-size:15px}
+.flow code{font-size:13.5px;color:#fff}
+.proof{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:40px}
+.proof div{border-top:1px solid #26382E;padding-top:16px}
+.proof b{display:block;font:800 40px/1 var(--display);letter-spacing:-.03em;color:#fff}
+.proof span{color:#A9B7AD;font-size:15px}
+@media (max-width:900px){.flow,.proof{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- limits ---------- */
+.limits{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.limits div{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px}
+.limits h3{font:700 21px/1.2 var(--display);margin:0 0 8px}
+.limits p{margin:0;color:var(--stem)}
+@media (max-width:760px){.limits{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- footer ---------- */
+footer{background:var(--spray);color:#fff;padding:70px 0 40px}
+.foot{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;align-items:end}
+.foot .big{font:800 clamp(44px,8vw,110px)/.85 var(--display);letter-spacing:-.05em;margin:0}
+.foot p{margin:6px 0 0;opacity:.85}
+.foot nav{display:flex;gap:20px;flex-wrap:wrap}
+@media (max-width:560px){.wrap{padding:0 18px}section{padding:80px 0}.label{padding:22px}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <a class="brand" href="#top">FarmAID</a>
+  <ul>
+    <li class="keep"><a href="#diagnose">Diagnose</a></li>
+    <li><a href="#conditions">Conditions</a></li>
+    <li><a href="#how">How it decides</a></li>
+    <li><a href="#limits">Limits</a></li>
+    <li class="keep"><a href="https://github.com/GeekDaksh/Crop-Disease-Detection" target="_blank" rel="noopener">GitHub</a></li>
+  </ul>
+</header>
+
+<main id="top">
+<section class="hero" aria-labelledby="t">
+  <div class="wrap">
+    <div class="wordclip"><h1 class="word" id="t" aria-label="FarmAID"><span>F</span><span>a</span><span>r</span><span>m</span><span>A</span><span>I</span><span>D</span></h1></div>
+    <div class="herogrid">
+      <div>
+        <p class="lede">Photograph a crop leaf. Find out what is wrong with it, and what to do next.</p>
+        <a class="cta" href="#diagnose">Diagnose a leaf</a>
+        <dl class="specs">
+          <div><dt>crops</dt><dd>6</dd></div>
+          <div><dt>conditions</dt><dd>23</dd></div>
+          <div><dt>model</dt><dd>ResNet50</dd></div>
+          <div><dt>input</dt><dd>224 × 224 px</dd></div>
+          <div><dt>reference photos right</dt><dd id="refscore">21 of 23</dd></div>
+        </dl>
+      </div>
+      <div class="lens" aria-live="polite">
+        <figure><img src="img/Corn___Common_Rust.webp" alt="A corn leaf with rust spots, one of the team's reference photos" width="560" height="560"><div class="scan" aria-hidden="true"></div></figure>
+        <div class="verdict" id="heroVerdict"><small>Asking the model about this corn leaf…</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="diagnose" aria-labelledby="dg">
+  <div class="wrap">
+    <div class="head">
+      <h2 id="dg">Diagnose<br><em>a leaf</em></h2>
+      <p>Take or upload one clear photo of a single leaf. The model looks at it at 224 × 224 pixels and names the most likely of 23 conditions.</p>
+    </div>
+    <div class="diag">
+      <div>
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="image/*" capture="environment" aria-label="Choose or take a leaf photo">
+          <span class="icon" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13" r="4"/></svg></span>
+          <strong>Take a photo or drop one here</strong>
+          <span class="hint">JPEG, PNG or WEBP, up to 20 MB</span>
+          <div class="preview" aria-hidden="true"><img id="prevImg" alt=""><div class="scan"></div></div>
+          <button type="button" class="again" id="again">Try another photo</button>
+        </label>
+        <ol class="steps" id="steps" hidden>
+          <li>Check the file</li><li>Resize to 224 × 224</li><li>Run ResNet50 on the server</li><li>Look up symptoms and treatment</li>
+        </ol>
+        <p class="note">The steps light up while you wait; they show the order of the pipeline, not live progress. The first request after a quiet spell can take up to a minute while the free server wakes.</p>
+      </div>
+      <article class="label" id="result" aria-live="polite">
+        <div class="empty">The diagnosis appears here.<br>No photo handy? Pick any leaf in the gallery below.</div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="conditions" aria-labelledby="cd">
+  <div class="wrap">
+    <div class="head">
+      <h2 id="cd">23<br><em>conditions</em></h2>
+      <p>One reference photo for every condition the model knows. Hover to compare with the healthy leaf of the same crop. Tap a card to run the model on the full-size original.</p>
+    </div>
+    <div class="crops" id="gallery"></div>
+  </div>
+</section>
+
+<section class="how" id="how" aria-labelledby="hw">
+  <div class="wrap">
+    <div class="head">
+      <h2 id="hw">How it<br><em>decides</em></h2>
+      <p>The same steps the team's model was trained with. Nothing on this page invents a number: every percentage comes back from the model.</p>
+    </div>
+    <ol class="flow">
+      <li><span class="n">1</span><h3>Gate the input</h3><p>Refuse anything that is not a readable JPEG, PNG or WEBP, under 64 px, over 20 MB, or absurdly large.</p></li>
+      <li><span class="n">2</span><h3>Resize like training</h3><p>Shrink to 224 × 224 with nearest-neighbour resizing, as Keras did when the model learned.</p></li>
+      <li><span class="n">3</span><h3>ResNet preprocessing</h3><p>Swap RGB to BGR and subtract the ImageNet channel means, exactly <code>resnet50.preprocess_input</code>.</p></li>
+      <li><span class="n">4</span><h3>ResNet50</h3><p>An ImageNet ResNet50 fine-tuned by the team, ending in 23 outputs that add up to 100%.</p></li>
+      <li><span class="n">5</span><h3>Flag doubt</h3><p>If the top answer is under 60%, the page says it is not sure and shows the runners-up.</p></li>
+      <li><span class="n">6</span><h3>Advice</h3><p>Symptoms, early signs and treatment come word for word from the team's own advice table.</p></li>
+    </ol>
+    <div class="proof">
+      <div><b>223 / 223</b><span>images where the served model and the original Keras file pick the same class</span></div>
+      <div><b>0.000002</b><span>largest gap between their probabilities</span></div>
+      <div><b>21 / 23</b><span>reference photos named correctly; the two misses are shown, not hidden</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="limits" aria-labelledby="lm">
+  <div class="wrap">
+    <div class="head">
+      <h2 id="lm">What it<br><em>can't do</em></h2>
+      <p>Knowing where a model breaks is part of using it safely.</p>
+    </div>
+    <div class="limits">
+      <div><h3>It always picks one of 23</h3><p>Show it a cat, a hand or a crop it never saw, and it still answers with one of its 23 conditions. It has no "this is not a leaf" option.</p></div>
+      <div><h3>The doubt flag is a rule of thumb</h3><p>The 60% line was set by hand. There was no held-out set to tune it on, so treat it as a caution sign, not a guarantee.</p></div>
+      <div><h3>23 reference photos are not an accuracy test</h3><p>They prove the pipeline is wired correctly. A real accuracy figure needs hundreds of unseen field photos per crop.</p></div>
+      <div><h3>Advice is general</h3><p>Treatments come from the team's table, not from an agronomist who has seen your field. Check doses and local rules before spraying.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <p class="big">FarmAID</p>
+      <p>Built by Daksh Patil · NMIMS MPSTME</p>
+    </div>
+    <nav>
+      <a href="https://github.com/GeekDaksh/Crop-Disease-Detection" target="_blank" rel="noopener">Code on GitHub</a>
+      <a href="https://github.com/GeekDaksh" target="_blank" rel="noopener">More projects</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+const API = (window.FARMAID_API || document.documentElement.dataset.api).replace(/\/$/, '');
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pct = p => (p * 100 >= 99.95 ? '100' : (p * 100).toFixed(1)) + '%';
+
+/* the 23 classes in the model's output order, grouped for the gallery */
+const CLASSES = ["Corn___Common_Rust","Corn___Gray_Leaf_Spot","Corn___Healthy","Corn___Northern_Leaf_Blight","Cotton___Alternaria","Cotton___Healthy","Cotton___Mealybug_Attack","Cotton___Potassium_Deficiency","Cotton___Thrip","Cotton___White_Flies","Potato___Early_Blight","Potato___Healthy","Potato___Late_Blight","Rice___Brown_Spot","Rice___Healthy","Rice___Leaf_Blast","Rice___Neck_Blast","Sugarcane___Bacterial Blight","Sugarcane___Healthy","Sugarcane___Red Rot","Wheat___Brown_Rust","Wheat___Healthy","Wheat___Yellow_Rust"];
+const split = c => { const [crop, cond] = c.split('___'); return {crop, cond: cond.replace(/_/g, ' ')}; };
+const thumb = c => 'img/' + c.replace(/ /g, '_') + '.webp';
+
+async function call(path, opts = {}, ms = 90000) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(API + path, {...opts, signal: ctl.signal});
+    const j = await r.json().catch(() => ({status: 'error', reason: `Server answered ${r.status}.`}));
+    if (!r.ok && !j.reason) j.reason = `Server answered ${r.status}.`;
+    return j;
+  } catch (e) {
+    return {status: 'error', reason: e.name === 'AbortError' ? 'The server took too long. It may still be waking up; try again in a moment.' : 'Could not reach the model server.'};
+  } finally { clearTimeout(t); }
+}
+
+/* nav turns solid after the hero */
+const nav = $('nav'), hero = document.querySelector('.hero');
+new IntersectionObserver(([e]) => nav.classList.toggle('solid', !e.isIntersecting), {rootMargin: '-60px 0px 0px 0px'}).observe(hero);
+
+/* hero: a live verdict from the real model on one reference photo */
+(async function heroVerdict() {
+  const v = $('heroVerdict');
+  const slow = setTimeout(() => { v.innerHTML = '<small>Waking the model server (free tier, up to a minute)…</small>'; }, 4000);
+  const j = await call('/api/specimen/' + encodeURIComponent('Corn___Common_Rust'));
+  clearTimeout(slow);
+  if (j.status !== 'ok') { v.innerHTML = `<small>${esc(j.reason)}</small>`; return; }
+  const t = j.top[0], s = split(t.id), line = `${s.crop}: ${s.cond}`;
+  v.innerHTML = `<small>model says</small><b class="caret" id="typed"></b><small>${pct(t.probability)} sure · ${j.ms} ms on the server</small>`;
+  const el = $('typed'); let i = 0;
+  const step = () => { el.textContent = line.slice(0, ++i); if (i < line.length) setTimeout(step, 38); else el.classList.remove('caret'); };
+  step();
+})();
+
+/* ---------- result card ---------- */
+const result = $('result');
+function render(j, truth) {
+  if (j.status !== 'ok') { result.innerHTML = `<div class="tagrow"><span class="tag warn">Not processed</span></div><p class="cond" style="font-size:30px">Couldn't read that</p><p>${esc(j.reason)}</p>`; return; }
+  const t = j.top[0], s = split(t.id);
+  let html = `<div class="tagrow"><span class="tag ${t.healthy ? 'ok' : 'sick'}">${t.healthy ? 'Healthy' : 'Problem found'}</span>${j.confident ? '' : '<span class="tag warn">Not sure</span>'}</div>
+    <p class="cond">${esc(t.healthy ? 'Healthy leaf' : s.cond)}</p><p class="crop">${esc(s.crop)}</p>
+    <div class="conf"><b>${pct(t.probability)}</b><span>model confidence</span></div>`;
+  if (!j.confident) html += `<p class="alert">The top answer is under ${Math.round(j.threshold * 100)}%. Treat it as a guess and check the runners-up below, or try a sharper photo of one leaf.</p>`;
+  html += `<div class="bars">${j.top.map(x => { const q = split(x.id); return `<div class="bar"><span>${esc(q.crop)}: ${esc(q.cond)}</span><span>${pct(x.probability)}</span><div class="track"><div class="fill" data-w="${x.probability * 100}"></div></div></div>`; }).join('')}</div>`;
+  if (truth) {
+    const ok = truth === t.id, q = split(truth);
+    html += `<p class="check ${ok ? 'right' : 'wrong'}">${ok ? 'Correct. ' : 'Wrong. '}This reference photo is labelled <b>${esc(q.crop)}: ${esc(q.cond)}</b>.</p>`;
+  }
+  const a = t.advice, d = t.advice_detailed;
+  html += `<div class="advice">
+      <div><h4>What it looks like</h4><p>${esc(a.symptom)}</p></div>
+      <div><h4>Early sign to watch for</h4><p>${esc(a.early_sign)}</p></div>
+      <div><h4>What to do</h4><p>${esc(a.solution)}</p></div>
+      ${d ? `<details><summary>More detail</summary><div class="advice" style="border:0;padding-top:12px;margin-top:0"><div><h4>Symptoms</h4><p>${esc(d.symptom)}</p></div><div><h4>Treatment</h4><p>${esc(d.solution)}</p></div></div></details>` : ''}
+    </div>
+    <p class="meta">${j.input.width} × ${j.input.height} px ${esc(j.input.format)} · answered in ${j.ms} ms · advice from the team's FarmAID table, not a substitute for an agronomist</p>`;
+  result.innerHTML = html;
+  requestAnimationFrame(() => result.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%'));
+}
+
+/* waiting display: pipeline order, timer-driven (not server progress) */
+const steps = $('steps');
+function waiting() {
+  steps.hidden = false; const li = [...steps.children]; li.forEach(l => l.className = '');
+  let i = 0; li[0].className = 'on';
+  const iv = setInterval(() => { if (i < li.length - 1) { li[i].className = 'done'; li[++i].className = 'on'; } }, 900);
+  result.innerHTML = '<div class="empty">Looking at the leaf…</div>';
+  return () => { clearInterval(iv); li.forEach(l => l.className = 'done'); };
+}
+
+/* ---------- upload ---------- */
+const drop = $('drop'), file = $('file');
+['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', ev => { if (ev.dataTransfer.files[0]) diagnose(ev.dataTransfer.files[0]); });
+file.addEventListener('change', () => { if (file.files[0]) diagnose(file.files[0]); });
+$('again').addEventListener('click', ev => { ev.preventDefault(); file.value = ''; file.click(); });
+
+async function diagnose(f) {
+  $('prevImg').src = URL.createObjectURL(f); drop.classList.add('has', 'busy');
+  const stop = waiting();
+  const fd = new FormData(); fd.append('image', f);           // the original file, untouched
+  const j = await call('/api/predict', {method: 'POST', body: fd});
+  stop(); drop.classList.remove('busy'); render(j); showResult();
+}
+
+/* ---------- gallery ---------- */
+const byCrop = {};
+CLASSES.forEach(c => (byCrop[split(c).crop] ||= []).push(c));
+$('gallery').innerHTML = Object.entries(byCrop).map(([crop, list]) => {
+  const healthy = list.find(c => c.endsWith('Healthy'));
+  const cards = list.map(c => {
+    const s = split(c), isH = c === healthy, alt = isH ? list.find(x => x !== c) : healthy;
+    return `<button class="card" data-c="${esc(c)}" aria-label="Run the model on the ${esc(s.crop)} ${esc(s.cond)} reference photo">
+      <div class="pic"><img src="${thumb(c)}" alt="" loading="lazy" width="560" height="560"><img class="alt" src="${thumb(alt)}" alt="" loading="lazy" width="560" height="560"><span class="swap">${isH ? 'vs ' + esc(split(alt).cond.toLowerCase()) : 'vs healthy'}</span></div>
+      <div class="cap"><b>${esc(s.cond)}</b><small>${esc(s.crop.toLowerCase())}</small></div></button>`;
+  }).join('');
+  return `<div class="croprow"><h3>${esc(crop)}</h3><div class="cards">${cards}</div></div>`;
+}).join('');
+$('gallery').addEventListener('click', async ev => {
+  const b = ev.target.closest('.card'); if (!b) return;
+  const c = b.dataset.c;
+  $('prevImg').src = thumb(c); drop.classList.add('has', 'busy');
+  document.getElementById('diagnose').scrollIntoView({behavior: 'smooth'});
+  const stop = waiting();
+  const j = await call('/api/specimen/' + encodeURIComponent(c));
+  stop(); drop.classList.remove('busy'); render(j, c); showResult();
+});
+function showResult() { if (window.innerWidth < 900) result.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+</script>
+</body>
+</html>

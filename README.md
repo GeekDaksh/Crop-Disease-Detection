@@ -1,5 +1,7 @@
 # 🌾 Crop Disease Detection (FARM-AID)
 
+**Live demo:** https://farmaid.onrender.com — photograph a leaf and the team's ResNet50 names the condition, with symptoms and treatment. Source of the page: [`docs/`](docs/).
+
 FARM-AID is an AI-powered crop disease detection system designed to support farmers in **Maharashtra and Gujarat** by enabling **early and accurate identification of crop diseases**. The system uses deep learning models to analyze crop images and provide real-time disease diagnosis for major crops such as wheat, rice, maize, sugarcane, potato, and cotton.
 
 ---
